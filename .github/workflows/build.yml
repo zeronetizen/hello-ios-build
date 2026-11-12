@@ -1,0 +1,54 @@
+name: Build iOS App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show environment (dbg)
+        run: |
+          echo "== runner =="
+          sw_vers
+          uname -m
+          echo "== xcode =="
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+          ls /Applications | grep -i xcode || true
+          echo "== workspace =="
+          ls -la
+          cat project.yml
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: |
+          xcodegen generate
+          ls -la HelloApp.xcodeproj
+
+      - name: Build for iOS Simulator (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild -project HelloApp.xcodeproj -scheme HelloApp \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build
+
+      - name: Verify .app bundle (dbg)
+        run: |
+          find build/Build/Products -maxdepth 2 -name "*.app" -print
+          ls -la build/Build/Products/Debug-iphonesimulator/HelloApp.app
+
+      - name: Upload .app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HelloApp-simulator
+          path: build/Build/Products/Debug-iphonesimulator/HelloApp.app
+          if-no-files-found: error
